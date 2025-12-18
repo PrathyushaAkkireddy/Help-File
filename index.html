@@ -37,7 +37,7 @@
  
 <script>
 // Automatically load document.docx from the same folder
-fetch('document.docx')
+fetch('document_1.docx')
   .then(response => {
     if (!response.ok) throw new Error("Document not found");
     return response.arrayBuffer();
@@ -115,4 +115,5 @@ function scrollToHeading(id, navItem) {
 </body>
 </html>
  
+
  
