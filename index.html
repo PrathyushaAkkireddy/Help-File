@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Word Documentation Viewer</title>
+<script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+<style>
+  body { margin:0; font-family: Arial, sans-serif; }
+  .container { display:flex; height:100vh; }
+  .sidebar { width:300px; border-right:1px solid #ccc; padding:10px; overflow-y:auto; background-color:#393a39; }
+  .sidebar ul { list-style:none; padding-left:0; }
+  .sidebar li { padding:6px 8px; cursor:pointer; border-radius:4px; user-select:none; color:#fff; }
+  .sidebar li:hover, .sidebar li.active { background:#007acc; color:#fff; }
+  .sidebar .parent::before { content:"▶ "; font-size:12px; }
+  .sidebar .parent.expanded::before { content:"▼ "; }
+  .children { margin-left:18px; display:none; }
+  .children.show { display:block; }
+  .content { flex:1; padding:25px; overflow-y:auto; }
+  table { border-collapse:collapse; width:100%; }
+  table, th, td { border:1px solid #333; padding:8px; }
+  img { max-width:100%; }
+  .sidebar-logo { text-align:center; padding:15px 10px; border-bottom:1px solid #555; margin-bottom:10px; }
+  .sidebar-logo img { max-width:180px; height:auto; }
+</style>
+</head>
+<body>
+ 
+<div class="container">
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <img src="logo.png" alt="Company Logo">
+    </div>
+    <ul id="nav"></ul>
+  </div>
+  <div class="content" id="content"></div>
+</div>
+ 
+<script>
+// Automatically load document.docx from the same folder
+fetch('document.docx')
+  .then(response => {
+    if (!response.ok) throw new Error("Document not found");
+    return response.arrayBuffer();
+  })
+  .then(arrayBuffer => mammoth.convertToHtml({ arrayBuffer }))
+  .then(result => buildLayout(result.value))
+  .catch(err => {
+    console.error(err);
+    document.getElementById('content').innerHTML = "<p style='color:red;'>Failed to load document. Make sure you are running this on a web server, not directly opening the HTML file.</p>";
+  });
+ 
+function buildLayout(html) {
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+ 
+  const nav = document.getElementById("nav");
+  const content = document.getElementById("content");
+ 
+  nav.innerHTML = "";
+  content.innerHTML = "";
+ 
+  let started = false; // Start from "Introduction"
+  let currentChildrenUL = null;
+ 
+  Array.from(temp.children).forEach((el, index) => {
+    if (!started) {
+      if (el.tagName === "H1" && el.innerText.trim().toLowerCase().includes("introduction")) {
+        started = true;
+      } else {
+        return; // skip before Introduction
+      }
+    }
+ 
+    if (/H[1-6]/.test(el.tagName)) el.id = "heading-" + index;
+ 
+    if (el.tagName === "H1") {
+      const li = document.createElement("li");
+      li.textContent = el.innerText;
+      li.classList.add("parent");
+ 
+      const childrenUL = document.createElement("ul");
+      childrenUL.classList.add("children");
+ 
+      li.onclick = () => {
+        childrenUL.classList.toggle("show");
+        li.classList.toggle("expanded");
+        scrollToHeading(el.id, li);
+      };
+ 
+      nav.appendChild(li);
+      nav.appendChild(childrenUL);
+      currentChildrenUL = childrenUL;
+    } else if (el.tagName === "H2" && currentChildrenUL) {
+      const subLi = document.createElement("li");
+      subLi.textContent = el.innerText;
+      subLi.onclick = (e) => {
+        e.stopPropagation();
+        scrollToHeading(el.id, subLi);
+      };
+      currentChildrenUL.appendChild(subLi);
+    }
+ 
+    content.appendChild(el.cloneNode(true));
+  });
+}
+ 
+function scrollToHeading(id, navItem) {
+  document.querySelectorAll(".sidebar li").forEach(li => li.classList.remove("active"));
+  const target = document.getElementById(id);
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  navItem.classList.add("active");
+}
+</script>
+ 
+</body>
+</html>
+ 
+ 
