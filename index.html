@@ -21,6 +21,86 @@
   img { max-width:100%; }
   .sidebar-logo { text-align:center; padding:15px 10px; border-bottom:1px solid #555; margin-bottom:10px; }
   .sidebar-logo img { max-width:180px; height:auto; }
+  .content {
+  flex: 1;
+  padding: 40px 20px;
+  overflow-y: auto;
+  background: #f9f9f9;
+}
+ 
+.content > * {
+  max-width: 900px;     /* controls content width */
+  margin-left: auto;
+  margin-right: auto;
+}
+.content p {
+  line-height: 1.7;
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+ 
+.content h1, 
+.content h2, 
+.content h3 {
+  margin-top: 32px;
+  margin-bottom: 12px;
+}
+ 
+.content h1 {
+  font-size: 26px;
+}
+ 
+.content h2 {
+  font-size: 22px;
+}
+ 
+.content h3 {
+  font-size: 18px;
+}
+ /* Center Figure captions */
+.content p:has(img) {
+  text-align: center;
+}
+ 
+/* Center text like "Figure 1", "Figure 2", "Table 1" */
+.content p {
+  text-align: left; /* default */
+}
+ 
+.content p:has(+ img),
+.content p:has(+ table),
+.content p:has(img) + p {
+  text-align: center;
+  font-weight: 600;
+  margin-top: 8px;
+  margin-bottom: 20px;
+}
+ 
+/* Center tables */
+.content table {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+ 
+/* Center table captions */
+.content table + p,
+.content p:has(+ table) {
+  text-align: center;
+  font-weight: 600;
+}
+.content img {
+  border: 2px solid #000;
+  padding:5px
+}
+/* Sub-sub section indentation */
+.sidebar ul.children ul.children li {
+  font-size: 13px;
+  padding-left: 14px;
+  opacity: 0.9;
+}
+
+
 </style>
 </head>
 <body>
@@ -37,7 +117,7 @@
  
 <script>
 // Automatically load document.docx from the same folder
-fetch('document_3.docx')
+fetch('KPIT_HONDA_EE_VNA_HILFARM_TEST_BENCH_USER_MANUAL_(2).docx')
   .then(response => {
     if (!response.ok) throw new Error("Document not found");
     return response.arrayBuffer();
@@ -49,30 +129,40 @@ fetch('document_3.docx')
     document.getElementById('content').innerHTML = "<p style='color:red;'>Failed to load document. Make sure you are running this on a web server, not directly opening the HTML file.</p>";
   });
  
+
 function buildLayout(html) {
   const temp = document.createElement("div");
   temp.innerHTML = html;
- 
   const nav = document.getElementById("nav");
   const content = document.getElementById("content");
  
   nav.innerHTML = "";
   content.innerHTML = "";
  
-  let started = false; // Start from "Introduction"
-  let currentChildrenUL = null;
+  let started = false;
+  let currentH1Children = null;
+  let currentH2Children = null;
  
   Array.from(temp.children).forEach((el, index) => {
+ 
+    // Start from Introduction
     if (!started) {
-      if (el.tagName === "H1" && el.innerText.trim().toLowerCase().includes("introduction")) {
+      if (el.tagName === "H1" &&
+          el.innerText.trim().toLowerCase().includes("introduction")) {
         started = true;
       } else {
-        return; // skip before Introduction
+        return;
       }
     }
  
-    if (/H[1-6]/.test(el.tagName)) el.id = "heading-" + index;
+    // Assign IDs to headings
+    if (/H[1-6]/.test(el.tagName)) {
+      el.id = "heading-" + index;
+    }
  
+    /* =======================
+       H1 (Parent)
+    ======================= */
     if (el.tagName === "H1") {
       const li = document.createElement("li");
       li.textContent = el.innerText;
@@ -89,34 +179,103 @@ function buildLayout(html) {
  
       nav.appendChild(li);
       nav.appendChild(childrenUL);
-      currentChildrenUL = childrenUL;
-    } else if (el.tagName === "H2" && currentChildrenUL) {
-      const subLi = document.createElement("li");
-      subLi.textContent = el.innerText;
-      subLi.onclick = (e) => {
-        e.stopPropagation();
-        scrollToHeading(el.id, subLi);
-      };
-      currentChildrenUL.appendChild(subLi);
+ 
+      currentH1Children = childrenUL;
+      currentH2Children = null;
     }
  
-    content.appendChild(el.cloneNode(true));
+    /* =======================
+       H2 (Sub-section)
+    ======================= */
+    else if (el.tagName === "H2" && currentH1Children) {
+      const li = document.createElement("li");
+      li.textContent = el.innerText;
+      li.classList.add("parent");
+ 
+      const childrenUL = document.createElement("ul");
+      childrenUL.classList.add("children");
+ 
+      li.onclick = (e) => {
+        e.stopPropagation();
+        childrenUL.classList.toggle("show");
+        li.classList.toggle("expanded");
+        scrollToHeading(el.id, li);
+      };
+ 
+      currentH1Children.appendChild(li);
+      currentH1Children.appendChild(childrenUL);
+ 
+      currentH2Children = childrenUL;
+    }
+ 
+    /* =======================
+       H3 (Sub-sub-section)
+    ======================= */
+    else if (el.tagName === "H3" && currentH2Children) {
+      const li = document.createElement("li");
+      li.textContent = el.innerText;
+ 
+      li.onclick = (e) => {
+        e.stopPropagation();
+        scrollToHeading(el.id, li);
+      };
+ 
+      currentH2Children.appendChild(li);
+    }
+ 
+    // Add content to main panel
+    const cloned = el.cloneNode(true);
+    content.appendChild(cloned);
+ 
+    // Fix numbering AFTER content is added
+    fixBrokenOrderedLists(content);
+  });
+}
+
+function fixBrokenOrderedLists(container) {
+  let lastOl = null;
+  let counter = 1;
+ 
+  Array.from(container.children).forEach(el => {
+    if (el.tagName === "OL") {
+      if (lastOl) {
+        // Continue numbering
+        el.start = counter;
+      }
+      counter += el.querySelectorAll("li").length;
+      lastOl = el;
+    } else if (
+      el.tagName === "P" ||
+      el.tagName === "IMG" ||
+      el.tagName === "TABLE"
+    ) {
+      // allowed elements inside a list, do NOT reset
+      return;
+    } else {
+      // any other element breaks the list
+      lastOl = null;
+      counter = 1;
+    }
   });
 }
  
+ 
 function scrollToHeading(id, navItem) {
-  document.querySelectorAll(".sidebar li").forEach(li => li.classList.remove("active"));
+  document.querySelectorAll(".sidebar li")
+    .forEach(li => li.classList.remove("active"));
+ 
   const target = document.getElementById(id);
-  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (target) {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+ 
   navItem.classList.add("active");
 }
 </script>
+ 
  
 </body>
 </html>
  
 
  
-
-
-
